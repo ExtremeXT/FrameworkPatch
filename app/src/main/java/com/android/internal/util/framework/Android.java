@@ -73,10 +73,12 @@ public final class Android {
             EC = parseKeyPair(Keybox.EC.PRIVATE_KEY);
             EC_CERTS.add(parseCert(Keybox.EC.CERTIFICATE_1));
             EC_CERTS.add(parseCert(Keybox.EC.CERTIFICATE_2));
+            EC_CERTS.add(parseCert(Keybox.EC.CERTIFICATE_3));
 
             RSA = parseKeyPair(Keybox.RSA.PRIVATE_KEY);
             RSA_CERTS.add(parseCert(Keybox.RSA.CERTIFICATE_1));
             RSA_CERTS.add(parseCert(Keybox.RSA.CERTIFICATE_2));
+            RSA_CERTS.add(parseCert(Keybox.RSA.CERTIFICATE_3));
         } catch (Throwable t) {
             Log.e(TAG, t.toString());
             throw new RuntimeException(t);
