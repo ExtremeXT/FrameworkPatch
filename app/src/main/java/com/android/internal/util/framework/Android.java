@@ -33,6 +33,7 @@ import org.spongycastle.util.io.pem.PemReader;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;
+import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
@@ -112,14 +113,29 @@ public final class Android {
     }
 
     public static boolean hasSystemFeature(boolean ret, String name) {
+        try {
+            Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
+            Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
+            boolean noPlay = (Boolean) getBooleanMethod.invoke(null, "persist.sys.no_play", false);
+            if (noPlay) return ret;
+        } catch (Exception ignored) {}
+
         if (PackageManager.FEATURE_KEYSTORE_APP_ATTEST_KEY.equals(name) || PackageManager.FEATURE_STRONGBOX_KEYSTORE.equals(name)) {
             return false;
         }
+
         return ret;
     }
 
     public static void newApplication(Context context) {
         if (context == null) return;
+
+        try {
+            Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
+            Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
+            boolean noPlay = (Boolean) getBooleanMethod.invoke(null, "persist.sys.no_play", false);
+            if (noPlay) return;
+        } catch (Exception ignored) {}
 
         String packageName = context.getPackageName();
         String processName = Application.getProcessName();
@@ -144,7 +160,16 @@ public final class Android {
     }
 
     public static Certificate[] engineGetCertificateChain(Certificate[] caList) {
+        try {
+            Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
+            Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
+            boolean noPlay = (Boolean) getBooleanMethod.invoke(null, "persist.sys.no_play", false);
+            if (noPlay) return caList;
+
+        } catch (Exception ignored) {}
+
         if (caList == null) throw new UnsupportedOperationException();
+
         try {
             X509Certificate leaf = (X509Certificate) certificateFactory.generateCertificate(new ByteArrayInputStream(caList[0].getEncoded()));
 
