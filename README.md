@@ -106,7 +106,7 @@ return-object v3
 
 Search for "newApplication" methods and before the return operation, add this:
 ```
-invoke-static {XX}, Lcom/android/internal/util/framework/Android;->onNewApp(Landroid/content/Context;)V
+invoke-static {XX}, Lcom/android/internal/util/framework/Android;->newApplication(Landroid/content/Context;)V
 ```
 
 Replace XX with the Context register.
