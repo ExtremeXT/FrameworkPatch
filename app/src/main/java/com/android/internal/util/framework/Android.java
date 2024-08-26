@@ -13,10 +13,12 @@ import org.spongycastle.asn1.ASN1Boolean;
 import org.spongycastle.asn1.ASN1Encodable;
 import org.spongycastle.asn1.ASN1EncodableVector;
 import org.spongycastle.asn1.ASN1Enumerated;
+import org.spongycastle.asn1.ASN1Integer;
 import org.spongycastle.asn1.ASN1ObjectIdentifier;
 import org.spongycastle.asn1.ASN1OctetString;
 import org.spongycastle.asn1.ASN1Sequence;
 import org.spongycastle.asn1.ASN1TaggedObject;
+import org.spongycastle.asn1.DERInteger;
 import org.spongycastle.asn1.DEROctetString;
 import org.spongycastle.asn1.DERSequence;
 import org.spongycastle.asn1.DERTaggedObject;
@@ -33,8 +35,8 @@ import org.spongycastle.util.io.pem.PemReader;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;
-import java.lang.reflect.Method;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -160,6 +162,12 @@ public final class Android {
     }
 
     public static Certificate[] engineGetCertificateChain(Certificate[] caList) {
+
+        // These have to be set to the security patch level date and version of your ROM
+        int osVersionLevelVal = 140000;
+        int osPatchLevelVal = 202406;
+        int bootorvendorPatchlevelVal = 20240601;
+
         try {
             Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
             Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
@@ -191,7 +199,16 @@ public final class Android {
 
             for (ASN1Encodable asn1Encodable : teeEnforced) {
                 ASN1TaggedObject taggedObject = (ASN1TaggedObject) asn1Encodable;
-                if (taggedObject.getTagNo() == 704) continue;
+                var tag = taggedObject.getTagNo();
+                /*
+                // https://developer.android.com/privacy-and-security/security-key-attestation#key_attestation_ext_schema
+                // 704: rootOfTrust
+                // 705: osVersion
+                // 706: osPatchlevel
+                // 718: vendorPatchlevel
+                // 719: bootPatchLevel
+                */
+                if (tag == 704 || tag == 705 || tag == 706 || tag == 718 || tag == 719) continue;
                 vector.add(taggedObject);
             }
 
@@ -223,6 +240,26 @@ public final class Android {
             ASN1TaggedObject rootOfTrustTagObj = new DERTaggedObject(704, rootOfTrustSeq);
 
             vector.add(rootOfTrustTagObj);
+
+            // Spoof OS Version
+            ASN1Encodable osVersionlevelEnc = new ASN1Integer(osVersionLevelVal);
+            ASN1TaggedObject osVersionLevelObj = new DERTaggedObject(705, osVersionlevelEnc);
+            vector.add(osVersionLevelObj);
+
+            // Spoof OS Patch Level
+            ASN1Encodable osPatchLevelEnc = new ASN1Integer(osPatchLevelVal);
+            ASN1TaggedObject osPatchLevelObj = new DERTaggedObject(706, osPatchLevelEnc);
+            vector.add(osPatchLevelObj);
+
+            // Spoof Vendor Patch Level
+            ASN1Encodable vendorPatchLevelEnc = new ASN1Integer(bootorvendorPatchlevelVal);
+            ASN1TaggedObject vendorPatchLevelObj = new DERTaggedObject(718, vendorPatchLevelEnc);
+            vector.add(vendorPatchLevelObj);
+
+            // Spoof Boot Patch Level
+            ASN1Encodable bootPatchLevelEnc = new ASN1Integer(bootorvendorPatchlevelVal);
+            ASN1TaggedObject bootPatchLevelObj = new DERTaggedObject(719, bootPatchLevelEnc);
+            vector.add(bootPatchLevelObj);
 
             ASN1Sequence hackEnforced = new DERSequence(vector);
 
