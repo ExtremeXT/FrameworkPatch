@@ -175,7 +175,7 @@ public final class Android {
         try {
             // These have to be set to the security patch level date and version of your ROM
             int osVersionLevelVal = 140000;
-            int osPatchLevelVal = 202406;
+            int osPatchLevelVal = 202408;
 
             X509Certificate leaf = (X509Certificate) certificateFactory.generateCertificate(new ByteArrayInputStream(caList[0].getEncoded()));
             if (leaf.getExtensionValue(OID.getId()) == null) return caList;
