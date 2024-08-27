@@ -1,178 +1,150 @@
-# Framework Patch
+# FrameworkPatch
+
 Modify framework.jar to build a valid certificate chain.
 
-## Requirements
-- Intermediate Windows and Linux knowledge.
-- Intermediate Java and Smali knowledge.
-- WSL (only in Windows).
-- Java.
-- 7zip.
-
-In GNU/Linux distro, install this packages (I use Ubuntu in WSL2):
-```
-sudo apt update
-sudo apt full-upgrade -y
-sudo apt install -y default-jdk zipalign
-```
-
 ## WARNING
-**This is for advanced users, if you don't know about programming either Linux, this is not for you...**
 
-No support will be provided.
-
-## How can I make my system rw?
-If you don't know how to do that just use a module for Magisk, KernelSU or APatch.
-
-Also, in modern devices, you must format data because modifying super partition breaks AVB.
+**This is for advanced users, if you don't know about Java and Smali modding, this is not for you. No support will be provided.**
 
 ## Tutorial
-First, cd to a working (and clean) directory.
+
+First, we have to add the hooks into framework.jar
 
 Pull framework.jar from your device:
+
 ```
 adb pull /system/framework/framework.jar
 ```
 
-Now, compile [smali](https://github.com/google/smali):
-(Use WSL if you are in Windows)
-```
-git clone --depth=1 https://github.com/google/smali.git
-cd smali
-./gradlew build
-```
+Decompile framework.jar as you like, either [APKTool](https://github.com/iBotPeaches/Apktool) or [Google's Smali](https://github.com/google/smali)
 
-Then pick smali and baksmali fatJars and paste to working dir.
-
-Using 7zip extract framework.jar to framework/ directory.
-
-Now using [jadx](https://github.com/skylot/jadx) open framework.jar and check these classes:
-- android.security.keystore2.AndroidKeyStoreSpi
-- android.app.Instrumentation
-
-You must check in where .dex they are, you can know by checking upper text in class declaration, something like this:
-```
-/* loaded from: classes3.dex */
-public class AndroidKeyStoreSpi extends KeyStoreSpi
-
-/* loaded from: classes.dex */
-public class Instrumentation 
-````
-
-Now using baksmali.jar, decompile all .dex files:
-```
-java -jar baksmali.jar d -a (ANDROID API LEVEL) framework/classes.dex -o classes
-java -jar baksmali.jar d -a (ANDROID API LEVEL) framework/classes2.dex -o classes2
-java -jar baksmali.jar d -a (ANDROID API LEVEL) framework/classes3.dex -o classes3
-...
-```
-
-After .dex files are decompiled, you must search in folders for this files and modify like this:
+Once the framework is decompiled, we have to edit three files.
 
 - AndroidKeyStoreSpi.smali:
 
-Search for method "engineGetCertificateChain" and near the end should be a line like this:
+Search for the "engineGetCertificateChain" method, you should find this code snippet:
+
 ```
 const/4 v4, 0x0
+
 aput-object v2, v3, v4
+
 return-object v3
 ```
 
 In this example:
 
-v2 -> leaf cert.
-v3 -> certificate chain.
-v4 -> 0, the position to insert the leaf cert in certificate chain.
+register v2 -> leaf cert
 
-It may be different in your .smali file. Do not copy and paste...
+register v3 -> certificate chain
+
+register v4 -> the value "0", the position to insert the leaf cert in certificate chain.
+
+It may be different in your .smali file. Do not copy and paste.
 
 After aput operation, you must add this:
+
 ```
 invoke-static {XX}, Lcom/android/internal/util/framework/Android;->engineGetCertificateChain([Ljava/security/cert/Certificate;)[Ljava/security/cert/Certificate;
+
 move-result-object XX
 ```
 
-Replace XX with the leaf certificate register.
+Where XX is your leaf certificate register.
 
 So the final code (in this example) should be this:
+
 ```
 const/4 v4, 0x0
+
 aput-object v2, v3, v4
+
 invoke-static {v3}, Lcom/android/internal/util/framework/Android;->engineGetCertificateChain([Ljava/security/cert/Certificate;)[Ljava/security/cert/Certificate;
+
 move-result-object v3
+
 return-object v3
 ```
 
 - Instrumentation.smali:
 
-Search for "newApplication" methods and before the return operation, add this:
+Search for the "newApplication" method, you should find this code snippet:
+
+```
+check-cast v0, Landroid/app/Application;
+
+invoke-virtual {v0, p1}, Landroid/app/Application;->attach(Landroid/content/Context;)V
+
+return-object v0
+```
+
+In this example:
+
+register v0 -> instance
+
+register p1 -> context
+
+Before the return operation, add this:
+
 ```
 invoke-static {XX}, Lcom/android/internal/util/framework/Android;->newApplication(Landroid/content/Context;)V
 ```
 
-Replace XX with the Context register.
+Where XX is your Context register.
 
 - ApplicationPackageManager.smali
 
-Search for "hasSystemFeature" method:
+Search for "hasSystemFeature" method, you should find this code snippet:
+
 ```
-.method public whitelist hasSystemFeature(Ljava/lang/String;)Z
-    .registers 3
-    .param p1, "name"    # Ljava/lang/String;
+const/4 v0, 0x0
 
-    .line 768
-    const/4 v0, 0x0
+invoke-virtual {p0, p1, v0}, Landroid/app/ApplicationPackageManager;->hasSystemFeature(Ljava/lang/String;I)Z
 
-    invoke-virtual {p0, p1, v0}, Landroid/app/ApplicationPackageManager;->hasSystemFeature(Ljava/lang/String;I)Z
+move-result v0
 
-    move-result v0
-
-    return v0
-.end method
+return v0
 ```
 
-And modify like this:
+In this example:
+
+register p0: context
+
+register p1: feature
+
+register v0: the value "0"
+
+Before the return, add this call:
+
 ```
-.method public whitelist hasSystemFeature(Ljava/lang/String;)Z
-    .registers 3
-    .param p1, "name"    # Ljava/lang/String;
+invoke-static {XX, YY}, Lcom/android/internal/util/framework/Android;->hasSystemFeature(ZLjava/lang/String;)Z
 
-    .line 768
-    const/4 v0, 0x0
-
-    invoke-virtual {p0, p1, v0}, Landroid/app/ApplicationPackageManager;->hasSystemFeature(Ljava/lang/String;I)Z
-
-    move-result v0
-
-    invoke-static {v0, p1}, Lcom/android/internal/util/framework/Android;->hasSystemFeature(ZLjava/lang/String;)Z
-
-    move-result v0
-
-    return v0
-.end method
+move-result v0
 ```
 
-This hook is optional, but I recommend it if your device has Strongbox or app attest key support.
+Where XX is the vlaue "0", and YY is the feature.
 
-Now compile all dex:
-```
-java -jar smali.jar a -a (ANDROID API LEVEL) classes -o framework/classes.dex
-java -jar smali.jar a -a (ANDROID API LEVEL) classes2 -o framework/classes2.dex
-java -jar smali.jar a -a (ANDROID API LEVEL) classes3 -o framework/classes3.dex
-...
-```
 
-Open this project in Android Studio and change EC and RSA keys, you must provide keybox private keys.
-Compile as release and copy classes.dex file.
+By default this project has fingerprint and keybox that are working as of 27.08.2024, you can change these in Fingerprint.java and Android.java.
 
-Use baksmali to decompile it and add to latest classesX folder.
+You also have to change the OS Version and OS Patch level in Android.java, search for "osVersionLevelVal"
 
-Using 7zip recompile as .zip all framework/ files **without** compression.
+Now compile this project in Android Studio, then decompile it. In the first smali folder you should have com/android/internal/util/framework with a lot of obfuscated files.
 
-After you have the framework.zip use zipalign:
-```
-zipalign -f -p -v -z 4 framework.zip framework.jar
-```
+Copy all those files to any smali folder in your framework.jar, I used smali_classes6. 
 
-Now move framework.jar to /system/framework, you can use a module to replace it or mount /system as read-write and replace it.
+After this, compile and zipalign your framework.jar, push it to your system and reboot.
 
-**Very important!** Remove all "boot-framework.*" files!
+## Troubleshooting
+
+If you are not passing neither DEVICE nor STRONG, verify that:
+
+- Your fingerprint is not banned
+
+- Your keybox is not banned
+
+- You set the correct OS Version
+
+- You set the correct OS Patch Level
+
+- You set the correct properties (look at PlayIntegrityFork in script-only mode)
