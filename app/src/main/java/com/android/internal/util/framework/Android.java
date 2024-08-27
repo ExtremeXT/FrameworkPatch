@@ -18,7 +18,6 @@ import org.spongycastle.asn1.ASN1ObjectIdentifier;
 import org.spongycastle.asn1.ASN1OctetString;
 import org.spongycastle.asn1.ASN1Sequence;
 import org.spongycastle.asn1.ASN1TaggedObject;
-import org.spongycastle.asn1.DERInteger;
 import org.spongycastle.asn1.DEROctetString;
 import org.spongycastle.asn1.DERSequence;
 import org.spongycastle.asn1.DERTaggedObject;
@@ -49,7 +48,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Obfuscate
 public final class Android {
-    private static final String TAG = "chiteroman";
+    private static final String TAG = "Play";
     private static final PEMKeyPair EC, RSA;
     private static final ASN1ObjectIdentifier OID = new ASN1ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17");
     private static final List<Certificate> EC_CERTS = new ArrayList<>();
@@ -58,18 +57,19 @@ public final class Android {
     private static final CertificateFactory certificateFactory;
 
     static {
-        map.put("MANUFACTURER", "Google");
-        map.put("MODEL", "Pixel Tablet");
-        map.put("FINGERPRINT", "google/tangorpro_beta/tangorpro:15/AP31.240617.010/12136053:user/release-keys");
-        map.put("BRAND", "google");
-        map.put("PRODUCT", "tangorpro_beta");
-        map.put("DEVICE", "tangorpro");
-        map.put("RELEASE", "15");
-        map.put("ID", "AP31.240617.010");
-        map.put("INCREMENTAL", "12136053");
-        map.put("SECURITY_PATCH", "2024-07-05");
-        map.put("TYPE", "user");
-        map.put("TAGS", "release-keys");
+        try {
+            Class<Fingerprint> clazz = Fingerprint.class;
+            for (Field field : clazz.getDeclaredFields()) {
+                // MANUFACTURER == Fingerprint.MANUFACTURER
+                // MODEL == Fingerprint.MODEL
+                // and so on
+                map.put(field.getName(), (String)field.get(null));
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, t.toString());
+            throw new RuntimeException(t);
+        }
+
         try {
             certificateFactory = CertificateFactory.getInstance("X.509");
 
@@ -162,12 +162,6 @@ public final class Android {
     }
 
     public static Certificate[] engineGetCertificateChain(Certificate[] caList) {
-
-        // These have to be set to the security patch level date and version of your ROM
-        int osVersionLevelVal = 140000;
-        int osPatchLevelVal = 202406;
-        int bootorvendorPatchlevelVal = 20240601;
-
         try {
             Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
             Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
@@ -179,41 +173,37 @@ public final class Android {
         if (caList == null) throw new UnsupportedOperationException();
 
         try {
+            // These have to be set to the security patch level date and version of your ROM
+            int osVersionLevelVal = 140000;
+            int osPatchLevelVal = 202406;
+
             X509Certificate leaf = (X509Certificate) certificateFactory.generateCertificate(new ByteArrayInputStream(caList[0].getEncoded()));
-
-            byte[] bytes = leaf.getExtensionValue(OID.getId());
-
-            if (bytes == null) return caList;
+            if (leaf.getExtensionValue(OID.getId()) == null) return caList;
 
             X509CertificateHolder holder = new X509CertificateHolder(leaf.getEncoded());
-
             Extension ext = holder.getExtension(OID);
-
             ASN1Sequence sequence = ASN1Sequence.getInstance(ext.getExtnValue().getOctets());
-
             ASN1Encodable[] encodables = sequence.toArray();
-
             ASN1Sequence teeEnforced = (ASN1Sequence) encodables[7];
-
             ASN1EncodableVector vector = new ASN1EncodableVector();
 
             for (ASN1Encodable asn1Encodable : teeEnforced) {
                 ASN1TaggedObject taggedObject = (ASN1TaggedObject) asn1Encodable;
                 var tag = taggedObject.getTagNo();
                 /*
-                // https://developer.android.com/privacy-and-security/security-key-attestation#key_attestation_ext_schema
-                // 704: rootOfTrust
-                // 705: osVersion
-                // 706: osPatchlevel
-                // 718: vendorPatchlevel
-                // 719: bootPatchLevel
+                * https://developer.android.com/privacy-and-security/security-key-attestation#key_attestation_ext_schema
+                * Values we replace:
+                * 704: rootOfTrust
+                * 705: osVersion
+                * 706: osPatchlevel
+                * 718: vendorPatchlevel
+                * 719: bootPatchLevel
                 */
                 if (tag == 704 || tag == 705 || tag == 706 || tag == 718 || tag == 719) continue;
                 vector.add(taggedObject);
             }
 
             LinkedList<Certificate> certificates;
-
             X509v3CertificateBuilder builder;
             ContentSigner signer;
 
@@ -234,11 +224,8 @@ public final class Android {
             ThreadLocalRandom.current().nextBytes(verifiedBootHash);
 
             ASN1Encodable[] rootOfTrustEnc = {new DEROctetString(verifiedBootKey), ASN1Boolean.TRUE, new ASN1Enumerated(0), new DEROctetString(verifiedBootHash)};
-
             ASN1Sequence rootOfTrustSeq = new DERSequence(rootOfTrustEnc);
-
             ASN1TaggedObject rootOfTrustTagObj = new DERTaggedObject(704, rootOfTrustSeq);
-
             vector.add(rootOfTrustTagObj);
 
             // Spoof OS Version
@@ -251,26 +238,23 @@ public final class Android {
             ASN1TaggedObject osPatchLevelObj = new DERTaggedObject(706, osPatchLevelEnc);
             vector.add(osPatchLevelObj);
 
+            int value = Integer.parseInt(String.valueOf(osPatchLevelVal).concat("01"));
+
             // Spoof Vendor Patch Level
-            ASN1Encodable vendorPatchLevelEnc = new ASN1Integer(bootorvendorPatchlevelVal);
+            ASN1Encodable vendorPatchLevelEnc = new ASN1Integer(value);
             ASN1TaggedObject vendorPatchLevelObj = new DERTaggedObject(718, vendorPatchLevelEnc);
             vector.add(vendorPatchLevelObj);
 
             // Spoof Boot Patch Level
-            ASN1Encodable bootPatchLevelEnc = new ASN1Integer(bootorvendorPatchlevelVal);
+            ASN1Encodable bootPatchLevelEnc = new ASN1Integer(value);
             ASN1TaggedObject bootPatchLevelObj = new DERTaggedObject(719, bootPatchLevelEnc);
             vector.add(bootPatchLevelObj);
 
             ASN1Sequence hackEnforced = new DERSequence(vector);
-
             encodables[7] = hackEnforced;
-
             ASN1Sequence hackedSeq = new DERSequence(encodables);
-
             ASN1OctetString hackedSeqOctets = new DEROctetString(hackedSeq);
-
             Extension hackedExt = new Extension(OID, false, hackedSeqOctets);
-
             builder.addExtension(hackedExt);
 
             for (ASN1ObjectIdentifier extensionOID : holder.getExtensions().getExtensionOIDs()) {
