@@ -122,7 +122,7 @@ invoke-static {XX, YY}, Lcom/android/internal/util/framework/Android;->hasSystem
 move-result v0
 ```
 
-Where XX is the vlaue "0", and YY is the feature.
+Where XX is the value "0", and YY is the feature.
 
 
 By default this project has fingerprint and keybox that are working as of 27.08.2024, you can change these in Fingerprint.java and Android.java.
