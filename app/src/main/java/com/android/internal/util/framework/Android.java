@@ -3,6 +3,7 @@ package com.android.internal.util.framework;
 import android.app.Application;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.SystemProperties;
 import android.os.Build;
 import android.security.keystore.KeyProperties;
 import android.text.TextUtils;
@@ -35,7 +36,6 @@ import org.spongycastle.util.io.pem.PemReader;
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -55,6 +55,11 @@ public final class Android {
     private static final List<Certificate> RSA_CERTS = new ArrayList<>();
     private static final Map<String, String> map = new HashMap<>();
     private static final CertificateFactory certificateFactory;
+    private static final String PROP = "persist.sys.no_play";
+
+    // These have to be set to the security patch level date and version of your ROM
+    private static final int osVersionLevelVal = 140000;
+    private static final int osPatchLevelVal = 202406;
 
     static {
         map.put("MANUFACTURER", Fingerprint.MANUFACTURER);
@@ -115,37 +120,22 @@ public final class Android {
     }
 
     public static boolean hasSystemFeature(boolean ret, String name) {
-        try {
-            Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
-            Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
-            boolean noPlay = (Boolean) getBooleanMethod.invoke(null, "persist.sys.no_play", false);
-            if (noPlay) return ret;
-        } catch (Exception ignored) {}
+        if (SystemProperties.getBoolean(PROP, false)) return ret;
 
-        if (PackageManager.FEATURE_KEYSTORE_APP_ATTEST_KEY.equals(name) || PackageManager.FEATURE_STRONGBOX_KEYSTORE.equals(name)) {
-            return false;
-        }
+        if (PackageManager.FEATURE_KEYSTORE_APP_ATTEST_KEY.equals(name) || PackageManager.FEATURE_STRONGBOX_KEYSTORE.equals(name)) return false;
 
         return ret;
     }
 
     public static void newApplication(Context context) {
+        if (SystemProperties.getBoolean(PROP, false)) return;
         if (context == null) return;
-
-        try {
-            Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
-            Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
-            boolean noPlay = (Boolean) getBooleanMethod.invoke(null, "persist.sys.no_play", false);
-            if (noPlay) return;
-        } catch (Exception ignored) {}
 
         String packageName = context.getPackageName();
         String processName = Application.getProcessName();
 
         if (TextUtils.isEmpty(packageName) || TextUtils.isEmpty(processName)) return;
-
         if (!"com.google.android.gms".equals(packageName)) return;
-
         if (!"com.google.android.gms.unstable".equals(processName)) return;
 
         map.forEach((fieldName, value) -> {
@@ -162,29 +152,18 @@ public final class Android {
     }
 
     public static Certificate[] engineGetCertificateChain(Certificate[] caList) {
-        try {
-            Class<?> systemPropertiesClass = Class.forName("android.os.SystemProperties");
-            Method getBooleanMethod = systemPropertiesClass.getMethod("getBoolean", String.class, boolean.class);
-            boolean noPlay = (Boolean) getBooleanMethod.invoke(null, "persist.sys.no_play", false);
-            if (noPlay) return caList;
-
-        } catch (Exception ignored) {}
-
+        if (SystemProperties.getBoolean(PROP, false)) return caList;
         if (caList == null) throw new UnsupportedOperationException();
 
         try {
-            // These have to be set to the security patch level date and version of your ROM
-            int osVersionLevelVal = 140000;
-            int osPatchLevelVal = 202408;
-
             X509Certificate leaf = (X509Certificate) certificateFactory.generateCertificate(new ByteArrayInputStream(caList[0].getEncoded()));
             if (leaf.getExtensionValue(OID.getId()) == null) return caList;
 
             X509CertificateHolder holder = new X509CertificateHolder(leaf.getEncoded());
             Extension ext = holder.getExtension(OID);
             ASN1Sequence sequence = ASN1Sequence.getInstance(ext.getExtnValue().getOctets());
-            ASN1Encodable[] encodables = sequence.toArray();
-            ASN1Sequence teeEnforced = (ASN1Sequence) encodables[7];
+            ASN1Encodable[] encodeables = sequence.toArray();
+            ASN1Sequence teeEnforced = (ASN1Sequence) encodeables[7];
             ASN1EncodableVector vector = new ASN1EncodableVector();
 
             for (ASN1Encodable asn1Encodable : teeEnforced) {
@@ -251,8 +230,8 @@ public final class Android {
             vector.add(bootPatchLevelObj);
 
             ASN1Sequence hackEnforced = new DERSequence(vector);
-            encodables[7] = hackEnforced;
-            ASN1Sequence hackedSeq = new DERSequence(encodables);
+            encodeables[7] = hackEnforced;
+            ASN1Sequence hackedSeq = new DERSequence(encodeables);
             ASN1OctetString hackedSeqOctets = new DEROctetString(hackedSeq);
             Extension hackedExt = new Extension(OID, false, hackedSeqOctets);
             builder.addExtension(hackedExt);
