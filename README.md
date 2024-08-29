@@ -122,14 +122,15 @@ invoke-static {XX, YY}, Lcom/android/internal/util/framework/Android;->hasSystem
 move-result v0
 ```
 
-Where XX is the vlaue "0", and YY is the feature.
+Where XX is the value "0", and YY is the feature.
 
+By default this project has fingerprint and keybox that are working as of 29.08.2024, you can change these in Fingerprint.java and Android.java.
 
-By default this project has fingerprint and keybox that are working as of 27.08.2024, you can change these in Fingerprint.java and Android.java.
-
-You also have to change the OS Version and OS Patch level in Android.java, search for "osVersionLevelVal"
+**You also have to change the OS Version and OS Patch level in Android.java**
 
 Now compile this project in Android Studio, then decompile it. In the first smali folder you should have com/android/internal/util/framework with a lot of obfuscated files.
+
+To compile the project, you have to use [modified android.jar](https://github.com/Reginer/aosp-android-jar) for the SystemProperties class
 
 Copy all those files to any smali folder in your framework.jar, I used smali_classes6. 
 
