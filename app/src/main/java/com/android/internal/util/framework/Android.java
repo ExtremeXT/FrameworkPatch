@@ -57,18 +57,18 @@ public final class Android {
     private static final CertificateFactory certificateFactory;
 
     static {
-        try {
-            Class<Fingerprint> clazz = Fingerprint.class;
-            for (Field field : clazz.getDeclaredFields()) {
-                // MANUFACTURER == Fingerprint.MANUFACTURER
-                // MODEL == Fingerprint.MODEL
-                // and so on
-                map.put(field.getName(), (String)field.get(null));
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, t.toString());
-            throw new RuntimeException(t);
-        }
+        map.put("MANUFACTURER", Fingerprint.MANUFACTURER);
+        map.put("MODEL", Fingerprint.MODEL);
+        map.put("FINGERPRINT", Fingerprint.FINGERPRINT);
+        map.put("BRAND", Fingerprint.BRAND);
+        map.put("PRODUCT", Fingerprint.PRODUCT);
+        map.put("DEVICE", Fingerprint.DEVICE);
+        map.put("RELEASE", Fingerprint.RELEASE);
+        map.put("ID", Fingerprint.ID);
+        map.put("INCREMENTAL", Fingerprint.INCREMENTAL);
+        map.put("SECURITY_PATCH", Fingerprint.SECURITY_PATCH);
+        map.put("TYPE", Fingerprint.TYPE);
+        map.put("TAGS", Fingerprint.TAGS);
 
         try {
             certificateFactory = CertificateFactory.getInstance("X.509");
